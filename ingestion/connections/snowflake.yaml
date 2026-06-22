@@ -1,0 +1,53 @@
+# =============================================================================
+# Snowflake — metadata ingestion (non-prod pilot).
+# Acceptance criteria covered: dataset discovery, schema visibility, ownership.
+# Secrets are injected from the environment (see .env) via shell-style placeholders.
+# Nothing here is a secret, so this file is safe to commit.
+# Run: scripts/run-ingestion.sh snowflake.yaml   (or run-ingestion.ps1 on Windows)
+# Connector reference: https://docs.open-metadata.org/latest/connectors/database/snowflake
+# =============================================================================
+source:
+  type: snowflake
+  serviceName: ${SNOWFLAKE_SERVICE_NAME}
+  serviceConnection:
+    config:
+      type: Snowflake
+      account: ${SNOWFLAKE_ACCOUNT}
+      username: ${SNOWFLAKE_USER}
+      # --- Authentication: use EITHER password OR key-pair (recommended). ------
+      # Password auth (simplest for a first pilot run):
+      password: ${SNOWFLAKE_PASSWORD}
+      # Key-pair auth (preferred for non-prod/prod — see docs/sources/snowflake.md):
+      # privateKey: ${SNOWFLAKE_PRIVATE_KEY}
+      # snowflakePrivatekeyPassphrase: ${SNOWFLAKE_PRIVATE_KEY_PASSPHRASE}
+      warehouse: ${SNOWFLAKE_WAREHOUSE}
+      role: ${SNOWFLAKE_ROLE}
+      # Leave SNOWFLAKE_DATABASE blank in .env to ingest all visible databases.
+      database: ${SNOWFLAKE_DATABASE}
+      queryTag: ${SNOWFLAKE_QUERY_TAG}
+      accountUsageSchema: SNOWFLAKE.ACCOUNT_USAGE
+      includeTransientTables: false
+      includeStreams: false
+      clientSessionKeepAlive: false
+  sourceConfig:
+    config:
+      type: DatabaseMetadata
+      includeTables: true
+      includeViews: true
+      # Scope the pilot here. Tighten these to the agreed pilot databases/schemas.
+      databaseFilterPattern:
+        excludes:
+          - "^SNOWFLAKE$"
+      schemaFilterPattern:
+        excludes:
+          - "^INFORMATION_SCHEMA$"
+sink:
+  type: metadata-rest
+  config: {}
+workflowConfig:
+  loggerLevel: INFO
+  openMetadataServerConfig:
+    hostPort: ${OM_HOST_PORT}
+    authProvider: openmetadata
+    securityConfig:
+      jwtToken: ${OM_JWT_TOKEN}

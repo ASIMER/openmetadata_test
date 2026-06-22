@@ -1,0 +1,24 @@
+# --- Secrets & local env (NEVER commit) ---
+.env
+*.local
+secrets/
+# Snowflake key-pair material
+*.p8
+*.pem
+rsa_key*
+
+# --- Docker volumes / persisted data ---
+docker-volume/
+db-data/
+es-data/
+
+# --- Logs & temp ---
+*.log
+tmp/
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+__pycache__/

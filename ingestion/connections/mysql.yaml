@@ -1,0 +1,31 @@
+# =============================================================================
+# SMOKE TEST — ingest the stack's OWN built-in MySQL.
+# Purpose: prove the end-to-end code path (runner -> server -> catalog) works
+# WITHOUT needing external Snowflake credentials. Safe to delete after the pilot.
+# hostPort uses the compose service name "mysql" (the runner joins the network).
+# Run: scripts/run-ingestion.sh mysql.yaml
+# =============================================================================
+source:
+  type: mysql
+  serviceName: ${SMOKE_MYSQL_SERVICE_NAME}
+  serviceConnection:
+    config:
+      type: Mysql
+      username: ${SMOKE_MYSQL_USER}
+      authType:
+        password: ${SMOKE_MYSQL_PASSWORD}
+      hostPort: mysql:3306
+      databaseSchema: ${SMOKE_MYSQL_DATABASE}
+  sourceConfig:
+    config:
+      type: DatabaseMetadata
+sink:
+  type: metadata-rest
+  config: {}
+workflowConfig:
+  loggerLevel: INFO
+  openMetadataServerConfig:
+    hostPort: ${OM_HOST_PORT}
+    authProvider: openmetadata
+    securityConfig:
+      jwtToken: ${OM_JWT_TOKEN}

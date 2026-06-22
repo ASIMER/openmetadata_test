@@ -1,0 +1,13 @@
+# Normalize line endings across Windows (Copilot agent target) and Linux/WSL.
+* text=auto eol=lf
+
+# Shell scripts and YAML must stay LF (run inside Linux containers).
+*.sh    text eol=lf
+*.yaml  text eol=lf
+*.yml   text eol=lf
+Makefile text eol=lf
+
+# PowerShell / batch stay CRLF for native Windows.
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf

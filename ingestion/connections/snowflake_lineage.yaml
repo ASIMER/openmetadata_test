@@ -1,0 +1,26 @@
+# =============================================================================
+# Snowflake — column/table LINEAGE from query history.
+# Acceptance criteria covered: "lineage where available".
+# Run this AFTER snowflake.yaml (metadata): it reuses the service already
+# registered in OpenMetadata (by serviceName) and reads its stored connection.
+# Run: scripts/run-ingestion.sh snowflake_lineage.yaml
+# =============================================================================
+source:
+  type: snowflake-lineage
+  serviceName: ${SNOWFLAKE_SERVICE_NAME}
+  sourceConfig:
+    config:
+      type: DatabaseLineage
+      # How many days of query history to scan for lineage (tune for the pilot).
+      queryLogDuration: 7
+      resultLimit: 10000
+sink:
+  type: metadata-rest
+  config: {}
+workflowConfig:
+  loggerLevel: INFO
+  openMetadataServerConfig:
+    hostPort: ${OM_HOST_PORT}
+    authProvider: openmetadata
+    securityConfig:
+      jwtToken: ${OM_JWT_TOKEN}

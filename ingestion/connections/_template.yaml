@@ -1,0 +1,36 @@
+# =============================================================================
+# TEMPLATE — copy to <source>.yaml and adjust for a new data source.
+# Connector catalog: https://docs.open-metadata.org/latest/connectors
+# Rules:
+#   - Secrets ALWAYS come from ${ENV_VARS} declared in .env — never hardcode.
+#   - `type` (lowercase) is the OpenMetadata source id (snowflake, postgres, ...).
+#   - serviceConnection.config.type is PascalCase (Snowflake, Postgres, ...).
+#   - For DB sources from the host, use host.docker.internal:<port> (Docker Desktop).
+#   - pip extra (if you ever run locally instead of via the image) usually equals
+#     the type: pip install "openmetadata-ingestion[<type>]".
+# Run: scripts/run-ingestion.sh <source>.yaml
+# =============================================================================
+source:
+  type: CHANGEME                       # e.g. postgres, bigquery, redshift, mssql, kafka, tableau
+  serviceName: ${MY_SERVICE_NAME}
+  serviceConnection:
+    config:
+      type: CHANGEME                   # e.g. Postgres, BigQuery, Redshift, Mssql, Kafka, Tableau
+      # --- connector-specific connection fields go here ---
+      # username: ${MY_USER}
+      # authType:
+      #   password: ${MY_PASSWORD}
+      # hostPort: host.docker.internal:5432
+  sourceConfig:
+    config:
+      type: DatabaseMetadata           # or DashboardMetadata / PipelineMetadata / MessagingMetadata
+sink:
+  type: metadata-rest
+  config: {}
+workflowConfig:
+  loggerLevel: INFO
+  openMetadataServerConfig:
+    hostPort: ${OM_HOST_PORT}
+    authProvider: openmetadata
+    securityConfig:
+      jwtToken: ${OM_JWT_TOKEN}
