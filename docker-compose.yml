@@ -50,10 +50,14 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
     networks: [app_net]
     healthcheck:
+      # NOTE: this passes only after the init script has created OM_DATABASE.
+      # If it never goes healthy with "database ... does not exist", the data
+      # volume is stale -> `docker compose down -v` then `up` (see README).
       test: ["CMD-SHELL", "psql -U $${POSTGRES_USER} -tAc 'select 1' -d $${OM_DATABASE}"]
-      interval: 15s
+      interval: 10s
       timeout: 10s
-      retries: 10
+      retries: 12
+      start_period: 40s
 
   elasticsearch:
     container_name: openmetadata_elasticsearch
@@ -116,7 +120,8 @@ services:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8586/healthcheck"]
       interval: 15s
       timeout: 10s
-      retries: 10
+      retries: 20
+      start_period: 60s
 
   # Airflow 2.10.5 (OpenMetadata ingestion image incl. the managed-apis plugin).
   ingestion:

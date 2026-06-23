@@ -50,6 +50,19 @@ Architecture details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Every connec
 environment variable whose **name mirrors the DevOps deployment** — full reference and what to change
 for EKS: [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md).
 
+## Troubleshooting
+
+**`dependency failed to start: container openmetadata_postgresql is unhealthy`**
+(postgres logs show `FATAL: database "openmetadata_db" does not exist`).
+
+The Postgres data volume is **stale**: PostgreSQL only runs `init/postgres-init.sh` on a *fresh,
+empty* data dir, so a leftover/partial volume from an earlier run skips DB creation. Reset it:
+```bash
+docker compose down -v        # ⚠ deletes the local DB volume (local test data only)
+docker compose up -d --wait
+```
+`down -v` wipes the local volumes; on this stack that's only throwaway test data, so it's safe.
+
 ## Versions — why OpenMetadata 1.10.0 (not 1.13)
 
 The deployment uses **Airflow 2.10.3** and **PostgreSQL 16.6**. OpenMetadata bundles its own Airflow
