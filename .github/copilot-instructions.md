@@ -1,30 +1,24 @@
-# Copilot instructions — OpenMetadata Snowflake pilot
+# Copilot instructions — OpenMetadata local stack
 
-This repo stands up OpenMetadata (Docker) and ingests **Snowflake** metadata for an R&D
-evaluation. **Read [`../AGENTS.md`](../AGENTS.md) first** — it is the source of truth. This file
-is the short version for GitHub Copilot agent mode.
+Read [`../AGENTS.md`](../AGENTS.md) first — it is the source of truth. Short version:
 
-## Context
-- Goal & acceptance criteria: `docs/TICKET.md` (User Story 7354786) and `docs/EVALUATION.md`.
-- Architecture (what runs, ports): `docs/ARCHITECTURE.md`.
-- Runtime: **Windows + Docker Desktop**, `docker compose` v2. No Java/Python/Node — all in containers.
-- OpenMetadata is pinned to **1.13.0**.
+- This repo is a **minimal local OpenMetadata stack** (Postgres + Elasticsearch + Airflow + server)
+  in Docker Compose. No Snowflake, no ingestion-as-code. The same compose later targets EKS via env values.
+- **Runtime:** Windows + Docker Desktop, `docker compose` v2. Everything runs in containers.
+- **Pinned:** OpenMetadata **1.10.0** (Airflow **2.10.5**), Postgres **16.6**, Elasticsearch **8.11.4**.
+  Don't change versions — they match the deployment (see README "Versions").
 
-## How to run (Windows)
+## Run
 ```powershell
-./run.ps1 up ; ./run.ps1 wait ; ./run.ps1 token
-./run.ps1 smoke                 # zero-credential sanity check (built-in MySQL)
-./run.ps1 ingest-snowflake ; ./run.ps1 ingest-lineage
+cp .env.example .env
+./run.ps1 up        # or:  docker compose up -d --wait
 ```
-UI: http://localhost:8585 (`admin@open-metadata.org` / `admin`).
+UI http://localhost:8585 (`admin@open-metadata.org` / `admin`).
 
 ## Conventions (must follow)
-- **Secrets only in `.env`** (gitignored). YAML configs reference `${VAR}`; never hardcode
-  credentials or JWT tokens, never commit `.env`, `*.p8`, or `*.pem`.
-- New data source = copy `ingestion/connections/_template.yaml`, add `${VARS}` to `.env.example`,
-  run `./run.ps1 ingest <file>.yaml`. Host databases use `host.docker.internal:<port>`.
-- `.sh`/`.yaml` = LF, `.ps1` = CRLF (`.gitattributes` enforces this).
-- Keep the repo minimal (config + scripts + docs). Do not vendor OpenMetadata source code.
-- Validate changes by actually running `up` → `smoke` → `ingest-snowflake`; don't claim success
-  without a green run. Non-prod Snowflake only.
-- If Snowflake credentials/permissions are missing, stop and ask the human.
+- All settings come from `.env` (DevOps variable names). `.env.example` is committed with working
+  local values; `.env` is gitignored. Never hardcode connection values in `docker-compose.yml`.
+- Mapping to keep: DevOps `DB_PASSWORD` → OM `DB_USER_PASSWORD` (already wired in the compose).
+- `.sh`/`.yaml` = LF, `.ps1` = CRLF.
+- Validate changes by running `up` and confirming the server is healthy on :8585. Keep it minimal.
+- For EKS, follow `docs/ENVIRONMENT.md`; don't run the local postgres/elasticsearch/ingestion there.

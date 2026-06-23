@@ -1,59 +1,48 @@
 # Architecture
 
-A running OpenMetadata instance is a small set of cooperating containers (defined in
-`docker-compose.yml`, OpenMetadata **1.13.0**), plus an ingestion runner we start on demand.
+A local OpenMetadata instance is five cooperating containers defined in `docker-compose.yml`
+(compose project `openmetadata-local`). Pinned to **OpenMetadata 1.10.0** (Airflow **2.10.5**) and
+**PostgreSQL 16.6**.
 
-## Services (the platform)
+## Services
 
-| Container | Role | Host port |
-|-----------|------|-----------|
-| `openmetadata_server` | Java/Dropwizard app — serves **both** the REST API and the React UI | **8585** (API+UI), 8586 (health/metrics) |
-| `openmetadata_mysql` | System of record — all metadata, lineage, policies; also the Airflow DB | 3306 |
-| `openmetadata_elasticsearch` | Search index powering Explore/discovery (rebuildable from MySQL) | 9200 / 9300 |
-| `execute_migrate_all` | One-shot DB migration job; exits on success (server waits for it) | — |
-| `openmetadata_ingestion` | Apache Airflow — runs ingestion pipelines created from the **UI** | 8080 |
+| Service | Container | Image | Port(s) | Role |
+|---|---|---|---|---|
+| `postgresql` | openmetadata_postgresql | `postgres:16.6` | 5432 | System of record — OM metadata + Airflow metadata (two DBs) |
+| `elasticsearch` | openmetadata_elasticsearch | `elasticsearch:8.11.4` | 9200 | Search index (discovery / Explore); rebuildable from Postgres |
+| `execute-migrate-all` | openmetadata_migrate | `openmetadata/server:1.10.0` | — | One-shot `./bootstrap/openmetadata-ops.sh migrate`, then exits |
+| `openmetadata-server` | openmetadata_server | `openmetadata/server:1.10.0` | 8585 / 8586 | REST API **and** the React UI (8585); health on 8586 |
+| `ingestion` | openmetadata_ingestion | `openmetadata/ingestion:1.10.0` | 8080 | Apache Airflow 2.10.5 + the OM managed-apis plugin |
 
-All containers share one bridge network. With `COMPOSE_PROJECT_NAME=openmetadata` (set in
-`.env`) that network is **`openmetadata_app_net`** and services resolve each other by name
-(`openmetadata-server`, `mysql`, `elasticsearch`).
+All share one bridge network (`app_net`) and resolve each other by service name.
 
-## Ingestion runner (the code path)
-
-`scripts/run-ingestion.*` starts a throwaway `docker.getcollate.io/openmetadata/ingestion:1.13.0`
-container that:
-1. **joins** `openmetadata_app_net`, so it reaches the server at `http://openmetadata-server:8585/api`;
-2. gets `.env` injected via `--env-file`, so the YAML's `${VAR}` placeholders resolve;
-3. runs `metadata ingest -c /workflows/<config>.yaml`, which connects to the source
-   (e.g. Snowflake over the internet), walks its metadata, and pushes entities to the server's
-   REST API (`sink: metadata-rest`).
-
+## Startup order (enforced by healthchecks)
 ```
-                       ┌─────────────────────────── openmetadata_app_net ───────────────────────────┐
-   you @ host ──8585──▶│  openmetadata-server ──▶ mysql (3306)                                       │
-   browser/API         │        ▲   │  ▲          elasticsearch (9200)                               │
-                       │        │   │  └────────── ingestion/Airflow (8080)  ── UI-driven pipelines   │
-   run-ingestion ─────▶│  ingestion-runner (metadata ingest) ──▶ server REST  ──▶ MySQL + ES index   │
-   (throwaway)         │        │                                                                     │
-                       └────────┼─────────────────────────────────────────────────────────────────┘
-                                ▼
-                          Snowflake (non-prod, over the internet)
+postgresql (healthy) ─┐
+elasticsearch (healthy)┼─▶ execute-migrate-all (runs to completion) ─▶ openmetadata-server (healthy) ─▶ ingestion
 ```
+The server `depends_on` the migration finishing (`service_completed_successfully`) and on Postgres +
+Elasticsearch being healthy. `docker compose up -d --wait` blocks until the server is healthy.
+
+## Database
+Plain **`postgres:16.6`** (not OpenMetadata's bundled postgres image), so the version matches the
+deployment exactly. On first boot, `init/postgres-init.sh` (mounted into
+`/docker-entrypoint-initdb.d/`) creates both databases and their owners from env vars:
+- `openmetadata_db` owned by `openmetadata_user`
+- `airflow_db` owned by `airflow_user`
 
 ## Auth
+Default **basic** auth (no SSO needed locally). Admin: `admin@open-metadata.org` / `admin`. The OM
+server drives Airflow as `admin`/`admin` via the pipeline-service client; Airflow calls back to the
+server at `SERVER_HOST_API_URL`.
 
-- Server auth provider is **basic** (email/password). Default admin: `admin@open-metadata.org` / `admin`.
-- Ingestion authenticates as the **`ingestion-bot`** using a JWT. `scripts/get-ingestion-token.*`
-  mints it via REST (admin login → `bots/name/ingestion-bot` → `users/token/{id}`) and writes
-  `OM_JWT_TOKEN` into `.env`. The bot token is long-lived; re-mint if it expires.
+## Environment-variable contract (local ↔ EKS)
+The compose reads everything from env (`.env`), using the **same variable names as the DevOps task
+definition**, so a deployment and the local run differ only in values. One bridge: OM internally
+expects `DB_USER_PASSWORD`, while DevOps uses `DB_PASSWORD` — so the compose maps
+`DB_USER_PASSWORD: ${DB_PASSWORD}`. Full table: [ENVIRONMENT.md](ENVIRONMENT.md).
 
-## Footprint
-
-Two JVMs (server + Elasticsearch) + Airflow + MySQL ⇒ budget **~6–8 GB RAM** for Docker.
-Persistent data lives in named/bound volumes (DB + ES index); `down` keeps them, `down-clean`
-(`down -v`) deletes them.
-
-## Target deployment (future)
-
-The ticket's end state is a **pre-prod instance on AWS ECS**. The same images and env model port
-to ECS task definitions (one service per container, or managed MySQL/OpenSearch). Treat ECS as a
-follow-up once the local evaluation is signed off.
+## On EKS
+Point `DB_*` at Aurora, search at the managed instance, and `PIPELINE_SERVICE_CLIENT_ENDPOINT` at the
+real Airflow; then run only `openmetadata-server` (plus the one-shot migrate) — the local
+`postgresql`, `elasticsearch`, and `ingestion` containers are replaced by managed services.
