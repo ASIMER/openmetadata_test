@@ -1,0 +1,20 @@
+# Example: run ONLY the OpenMetadata server, pointing at your already-deployed
+# PostgreSQL, Elasticsearch and Airflow. Those services are external and NOT
+# managed here. Fill in .env first (see .env.example), then:
+#
+#   docker compose -f docker-compose.example.yml up -d
+#
+services:
+  openmetadata-server:
+    # Build locally, or replace `build` with `image: <your-registry>/openmetadata-server:1.10.0`
+    build:
+      context: .
+      args:
+        OPENMETADATA_VERSION: "1.10.0"
+    image: openmetadata-server:1.10.0
+    container_name: openmetadata_server
+    env_file: .env
+    ports:
+      - "8585:8585"   # UI + API
+      - "8586:8586"   # health / metrics
+    restart: unless-stopped
